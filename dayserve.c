@@ -1,3 +1,13 @@
+/*
+   John Karasev
+   CS 360 Systems Programming
+   WSUV Spring 2018
+   -----------------------------------------------------
+   Assignment #9:
+   Using network sockets, make a server and client where client gets time
+   from the server. This file is the implementation of the client side.
+*/
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -10,41 +20,41 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <err.h>
+#include <errno.h>
 
-#define PORT 49999
-
-//TODO catch errors.
-
+#define PORT 40000
+/* Configures the address of the server. */
 void setConnectionAddress(struct sockaddr_in *servAddr, struct hostent* host) {
+	// set to 0 to avoid unwanted configurations.
 	memset( (struct servAddr*) servAddr, 0, sizeof(servAddr));
-	servAddr->sin_family = AF_INET;
+	servAddr->sin_family = AF_INET; //set family and port.
 	servAddr->sin_port = htons(PORT);
-	/* this is magic, unless you want to dig into the man pages */
-	struct in_addr **pptr = (struct in_addr **) host->h_addr_list;
-	memcpy(&servAddr->sin_addr, *pptr, sizeof(struct in_addr));
+	// set the server address that client will connect to.
+	memcpy(&servAddr->sin_addr, *(host->h_addr_list), sizeof(struct in_addr));
 
 }
 
 
 int main (int argc, char** argv) {
 
-	int socketfd = socket( AF_INET, SOCK_STREAM, 0);
+	int socketfd = socket( AF_INET, SOCK_STREAM, 0); // get a socket fd.
 	struct sockaddr_in servAddr;
 	struct hostent* hostEntry;
 
-	if ( ( hostEntry = gethostbyname( argv[1] ) ) == NULL )
-		errx( 1, "no name associated with %s\n", argv[1] );
+	if ( ( hostEntry = gethostbyname( argv[1] ) ) == NULL )  // get struct with host info.
+		errx( 1, "no name associated with %s\n", argv[1]);
 
 	setConnectionAddress(&servAddr, hostEntry);
 
-	connect(socketfd, (struct sockaddr *) &servAddr,
-	            sizeof(servAddr));
+	if ( connect(socketfd, (struct sockaddr *) &servAddr, /* Connect to server */
+	            sizeof(servAddr)) == -1)
+		errx( 1, "error connecting: %s", strerror(errno));
 
-	char buffer[20];
+	char buffer[40];
 	int charread;
 
-	while( (charread = read(socketfd, buffer, 19)) != 0 ) {
-		//buffer[charread+1] = '\0';
+	while( (charread = read(socketfd, buffer, 40)) != 0 ) {
+		//buffer[charread] = '\0';
 		printf("%s", buffer);
 	}
 
