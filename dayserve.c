@@ -13,7 +13,7 @@
 #define PORT 49999
 
 
-int main () {
+int main (int argc, char** argv) {
 	int socketfd;
 	socketfd = socket( AF_INET, SOCK_STREAM, 0);
 	struct sockaddr_in servAddr;
@@ -24,7 +24,7 @@ int main () {
 	servAddr.sin_family = AF_INET;
 	servAddr.sin_port = htons(PORT);
 
-	hostEntry = gethostbyname("localhost");
+	hostEntry = gethostbyname(argv[1]);
 	/* test for error using herror() */
 
 	/* this is magic, unless you want to dig into the man pages */

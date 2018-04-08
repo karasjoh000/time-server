@@ -12,13 +12,21 @@
 #include <sys/wait.h>
 #include <stdbool.h>
 #include <time.h>
+#include <pthread.h>
+#include <signal.h>
 
 #define PORT 49999
+
+static pthread_cond_t workerReleaser;
+static pthread_mutex_t workerlist;
+static pthread_t *releaserThread;
 
 typedef struct _worker {
 	pid_t pid;
 	struct _worker *next;
 } Worker;
+
+static Worker* workers;
 
 void addWorker(Worker *ptr, Worker *new) {
 	new->next  = ptr;
@@ -52,12 +60,39 @@ Worker* releaseWorkers (Worker *ptr) {
 
 }
 
+void forceRelease(Worker* workers) {
+	if (!workers) return;
+	forceRelease(workers->next);
+	free(workers);
+}
+
+
+
+void releaser(void* p) {
+	Worker *workers = (Worker*) p;
+	while( 1) {
+		pthread_mutex_lock(&workerlist);
+		pthread_cond_wait(&workerReleaser, &workerlist);
+		releaseWorkers(workers);
+		pthread_mutex_unlock(&workerlist);
+	}
+
+}
+
 void serveClient(int netfd) {
-	sleep(2); 
-	char buffer[20];
-	strcpy(buffer, "hello world\n");
-	write(netfd, buffer, strlen("hello world\n") + 1);
+	char buffer[40];
+	time_t current = time(NULL);
+	strcpy(buffer, ctime(&current));
+	write(netfd, buffer, strlen(buffer));
 	close(netfd);
+	exit(0);
+}
+
+void shutdownServer(int code) {
+	printf("\nshutting down server\n");
+	pthread_cancel(*releaserThread);
+	free(releaserThread);
+	forceRelease(workers);
 	exit(0);
 }
 
@@ -82,17 +117,19 @@ void bindNameToSocket(int listenfd, struct sockaddr_in* servAddr) {
 
 int main () {
 
-	Worker* workers = NULL;
+	signal( SIGINT, shutdownServer );
 
-	int listenfd;
-	listenfd = socket(AF_INET, SOCK_STREAM, 0);
+	workers = NULL;
+
+	releaserThread = ( pthread_t* ) malloc( sizeof( pthread_t ));
+	pthread_create(releaserThread, NULL, ( void* ) releaser, workers );
+
+	int listenfd = socket(AF_INET, SOCK_STREAM, 0);
 
 	struct sockaddr_in servAddr;
 
 	setServerAddress(&servAddr);
-
 	bindNameToSocket(listenfd, &servAddr);
-
 	listen(listenfd, 1);
 
 	int connectfd;
@@ -114,9 +151,11 @@ int main () {
 
 		printf("process %d is serving client\n", pid);
 
+		pthread_mutex_lock(&workerlist);
 		addWorker(workers, allocWorker(pid));
+		pthread_mutex_unlock(&workerlist);
 
-		releaseWorkers(workers);
+		pthread_cond_signal(&workerReleaser);
 
 	}
 
