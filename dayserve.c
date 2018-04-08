@@ -9,27 +9,33 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/uio.h>
+#include <err.h>
 
 #define PORT 49999
 
+//TODO catch errors.
+
+void setConnectionAddress(struct sockaddr_in *servAddr, struct hostent* host) {
+	memset( (struct servAddr*) servAddr, 0, sizeof(servAddr));
+	servAddr->sin_family = AF_INET;
+	servAddr->sin_port = htons(PORT);
+	/* this is magic, unless you want to dig into the man pages */
+	struct in_addr **pptr = (struct in_addr **) host->h_addr_list;
+	memcpy(&servAddr->sin_addr, *pptr, sizeof(struct in_addr));
+
+}
+
 
 int main (int argc, char** argv) {
-	int socketfd;
-	socketfd = socket( AF_INET, SOCK_STREAM, 0);
+
+	int socketfd = socket( AF_INET, SOCK_STREAM, 0);
 	struct sockaddr_in servAddr;
 	struct hostent* hostEntry;
-	struct in_addr **pptr;
 
-	memset( &servAddr, 0, sizeof(servAddr));
-	servAddr.sin_family = AF_INET;
-	servAddr.sin_port = htons(PORT);
+	if ( ( hostEntry = gethostbyname( argv[1] ) ) == NULL )
+		errx( 1, "no name associated with %s\n", argv[1] );
 
-	hostEntry = gethostbyname(argv[1]);
-	/* test for error using herror() */
-
-	/* this is magic, unless you want to dig into the man pages */
-	pptr = (struct in_addr **) hostEntry->h_addr_list;
-	memcpy(&servAddr.sin_addr, *pptr, sizeof(struct in_addr));
+	setConnectionAddress(&servAddr, hostEntry);
 
 	connect(socketfd, (struct sockaddr *) &servAddr,
 	            sizeof(servAddr));
@@ -38,7 +44,7 @@ int main (int argc, char** argv) {
 	int charread;
 
 	while( (charread = read(socketfd, buffer, 19)) != 0 ) {
-		buffer[charread+1] = '\0';
+		//buffer[charread+1] = '\0';
 		printf("%s", buffer);
 	}
 

@@ -17,6 +17,8 @@
 
 #define PORT 49999
 
+//TODO catch errors.
+
 static pthread_cond_t workerReleaser;
 static pthread_mutex_t workerlist;
 static pthread_t *releaserThread;
@@ -66,7 +68,13 @@ void forceRelease(Worker* workers) {
 	free(workers);
 }
 
-
+void shutdownServer(int code) {
+	printf("\nshutting down server\n");
+	pthread_cancel(*releaserThread);
+	free(releaserThread);
+	forceRelease(workers);
+	exit(0);
+}
 
 void releaser(void* p) {
 	Worker *workers = (Worker*) p;
@@ -88,16 +96,8 @@ void serveClient(int netfd) {
 	exit(0);
 }
 
-void shutdownServer(int code) {
-	printf("\nshutting down server\n");
-	pthread_cancel(*releaserThread);
-	free(releaserThread);
-	forceRelease(workers);
-	exit(0);
-}
-
 void setServerAddress(struct sockaddr_in* servAddr) {
-
+	//
 	memset(servAddr, 0, sizeof(*servAddr));
 	servAddr->sin_family = AF_INET;
 	servAddr->sin_port = htons(PORT);
@@ -116,45 +116,47 @@ void bindNameToSocket(int listenfd, struct sockaddr_in* servAddr) {
 }
 
 int main () {
-
+	// cancel threads and release memory then exit, see shutdownServer.
 	signal( SIGINT, shutdownServer );
-
+	// init list of pid's.
 	workers = NULL;
-
+	// make a seperate thread that will waitpid WNOHANG on the list of pid's.
 	releaserThread = ( pthread_t* ) malloc( sizeof( pthread_t ));
 	pthread_create(releaserThread, NULL, ( void* ) releaser, workers );
 
+	// get a fd for socket
 	int listenfd = socket(AF_INET, SOCK_STREAM, 0);
-
 	struct sockaddr_in servAddr;
 
-	setServerAddress(&servAddr);
-	bindNameToSocket(listenfd, &servAddr);
-	listen(listenfd, 1);
+	setServerAddress(&servAddr); //set address, port, and add. family.
+	bindNameToSocket(listenfd, &servAddr); // bind address to socket.
+	listen(listenfd, 1); // set queue limit for incoming connections
 
 	int connectfd;
 	unsigned int length = sizeof(struct sockaddr_in);
 	struct sockaddr_in clientAddr;
 
 	while (1) {
+
 		pid_t pid;
+
 		printf("listing on port %d\n", PORT);
 
-		connectfd = accept( listenfd,
+		connectfd = accept( listenfd, /* accept client */
 		     (struct sockaddr *) &clientAddr, &length);
 
 		printf("accepted client\n");
-
+		// create new process to serve client.
 		if ( !( pid = fork() ) )  serveClient(connectfd);
-
+		// close fd so client will recieve EOF when child finishes.
 		close(connectfd);
 
 		printf("process %d is serving client\n", pid);
-
+		// lock list of pid's and add the new pid.
 		pthread_mutex_lock(&workerlist);
 		addWorker(workers, allocWorker(pid));
 		pthread_mutex_unlock(&workerlist);
-
+		// signal thread to kill zombie processes.
 		pthread_cond_signal(&workerReleaser);
 
 	}
