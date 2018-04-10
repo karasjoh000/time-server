@@ -28,7 +28,7 @@
 #include <err.h>
 #include <errno.h>
 
-#define PORT 40000
+#define PORT 49999
 
 //TODO catch errors.
 

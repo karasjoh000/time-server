@@ -22,7 +22,7 @@
 #include <err.h>
 #include <errno.h>
 
-#define PORT 40000
+#define PORT 49999
 /* Configures the address of the server. */
 void setConnectionAddress(struct sockaddr_in *servAddr, struct hostent* host) {
 	// set to 0 to avoid unwanted configurations.
