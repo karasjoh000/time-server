@@ -128,6 +128,8 @@ int main () {
 
 	while (1) {
 
+		struct hostent* hostEntry;
+
 		pid_t pid;
 
 		printf("listing on port %d\n", PORT);
@@ -136,11 +138,19 @@ int main () {
 		      &length)) == -1 )
 			errx( 1, "error connecting: %s", strerror(errno));
 
-		char clienthost[INET_ADDRSTRLEN];
+		// get ip address of client.
+		char clientip[INET_ADDRSTRLEN];
 		if ( ( inet_ntop( AF_INET, &clientAddr.sin_addr,
-		     clienthost, INET_ADDRSTRLEN ) ) == NULL)
+		     clientip, INET_ADDRSTRLEN ) ) == NULL)
 			errx( 1, "error connecting: %s", strerror(errno));
-		printf("accepted client from %s\n", clienthost);
+
+		// get hostname of client.
+		hostEntry = gethostbyaddr(&(clientAddr.sin_addr),
+			   sizeof(struct in_addr), AF_INET);
+
+		if (!hostEntry)
+			printf("accepted client [name: unknown][ip: %s]\n", clientip);
+		printf("accepted client [name: %s][ip: %s]\n", hostEntry->h_name, clientip);
 
 		// create new process to serve client.
 		if ( !( pid = fork() ) )  serveClient(connectfd);
