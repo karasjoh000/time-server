@@ -41,6 +41,10 @@ int main (int argc, char** argv) {
 	struct sockaddr_in servAddr;
 	struct hostent* hostEntry;
 
+	if( argc == 1 )
+		errx(0, "please provide a hostname in arguments");
+
+
 	if ( ( hostEntry = gethostbyname( argv[1] ) ) == NULL )  // get struct with host info.
 		errx( 1, "no name associated with %s\n", argv[1]);
 
