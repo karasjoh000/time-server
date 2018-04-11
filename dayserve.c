@@ -92,7 +92,7 @@ void bindNameToSocket(int listenfd, struct sockaddr_in* servAddr) {
 	int on = 1;
 	// allow reuse of socket without waiting 3 min before using again.
 	if ( setsockopt( listenfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on) ) < 0)
-		errx( 1, "error on sock opt: %s", strerror(errno));
+		errx( 1, "error on sockopt: %s", strerror(errno));
 	if ( bind( listenfd, /*assigns a name to an unnamed socket*/
 		(struct sockaddr *) servAddr, sizeof(*servAddr)) < 0) {
 			perror("bind");
