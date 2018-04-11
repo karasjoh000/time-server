@@ -39,73 +39,28 @@ static pthread_t *releaserThread;      // thread that kills zombie processes.
 
 static int connectfd;
 
-// linked list that keeps pid's of forked processes
-typedef struct _worker {
-	pid_t pid;
-	struct _worker *next;
-} Worker;
 
-// list of process id's. Global so visible to other threads.
-static Worker* workers;
-
-// adds new worker (pid) to list.
-void addWorker(Worker *ptr, Worker *new) {
-	new->next  = ptr;
-	ptr = new;
-}
-
-// returns pointer to worker struct with pid set.
-Worker *allocWorker(pid_t pid) {
-	Worker* new = (Worker*) malloc(sizeof(Worker));
-	new->pid = pid;
-	return new;
-}
-
-// kills off all zombie processes.
-Worker* releaseWorkers (Worker *ptr) {
-	int stat;
-	if(!ptr) return NULL;
-	Worker *temp;
-	if(!waitpid(ptr->pid, &stat, WNOHANG))  {
-		temp = ptr->next;
-		free(ptr);
-		return releaseWorkers(temp);
-	}
-	temp = ptr;
-	while(temp->next) {
-		if(!waitpid(ptr->next->pid, &stat, WNOHANG)) {
-			Worker *del = temp->next;
-			temp = temp->next = ptr->next->next;
-			free(del);
-		}
-	}
-	return ptr;
-
-}
-
-// when SIGINT recieved, free list not considering whether zombie or not.
-void forceRelease(Worker* workers) {
-	if (!workers) return;
-	forceRelease(workers->next);
-	free(workers);
-}
 // SIGINT handler, releases mem and cancels second thread.
 void shutdownServer(int code) {
 	close(connectfd);
 	printf("\nshutting down server\n");
 	pthread_cancel(*releaserThread);
 	free(releaserThread);
-	forceRelease(workers);
 	exit(0);
+}
+
+void killZombies() {
+	int stat;
+	while (waitpid(-1, &stat, WNOHANG));
+	return;
 }
 
 // releaserThread waiting function. When signaled, executes releaseWorkers().
 void releaser(void* p) {
-	Worker *workers = (Worker*) p;
 	while( 1) {
 		pthread_mutex_lock(&workerlist);
 		pthread_cond_wait(&workerReleaser, &workerlist);
-		releaseWorkers(workers);
+		killZombies();
 		pthread_mutex_unlock(&workerlist);
 	}
 
@@ -150,10 +105,9 @@ int main () {
 	// cancel threads and release memory then exit, see shutdownServer.
 	signal( SIGINT, shutdownServer );
 	// init list of pid's.
-	workers = NULL;
 	// make a seperate thread that will waitpid WNOHANG on the list of pid's.
 	releaserThread = ( pthread_t* ) malloc( sizeof( pthread_t ));
-	pthread_create(releaserThread, NULL, ( void* ) releaser, workers );
+	pthread_create(releaserThread, NULL, ( void* ) releaser, NULL);
 
 	// get a fd for socket
 	int listenfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -194,10 +148,7 @@ int main () {
 		close(connectfd);
 
 		printf("process %d is serving client\n", pid);
-		// lock list of pid's and add the new pid.
-		pthread_mutex_lock(&workerlist);
-		addWorker(workers, allocWorker(pid));
-		pthread_mutex_unlock(&workerlist);
+
 		// signal thread to kill zombie processes.
 		pthread_cond_signal(&workerReleaser);
 
