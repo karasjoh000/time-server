@@ -33,8 +33,7 @@
 //TODO catch errors.
 
 static pthread_cond_t workerReleaser;  // for the thread that kills off
-				       // zombie processes.
-static pthread_mutex_t workerlist;     // ensures that one thread is accessing the list
+static pthread_mutex_t m_workerReleaser; 				       // zombie processes.
 static pthread_t *releaserThread;      // thread that kills zombie processes.
 
 static int connectfd;
@@ -58,10 +57,10 @@ void killZombies() {
 // releaserThread waiting function. When signaled, executes releaseWorkers().
 void releaser(void* p) {
 	while( 1) {
-		pthread_mutex_lock(&workerlist);
-		pthread_cond_wait(&workerReleaser, &workerlist);
+		pthread_mutex_lock(&m_workerReleaser);
+		pthread_cond_wait(&workerReleaser, &m_workerReleaser);
 		killZombies();
-		pthread_mutex_unlock(&workerlist);
+		pthread_mutex_unlock(&m_workerReleaser);
 	}
 
 }
@@ -92,7 +91,8 @@ void setServerAddress(struct sockaddr_in* servAddr) {
 void bindNameToSocket(int listenfd, struct sockaddr_in* servAddr) {
 	int on = 1;
 	// allow reuse of socket without waiting 3 min before using again.
-	setsockopt( listenfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on) );
+	if ( setsockopt( listenfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on) ) < 0)
+		errx( 1, "error on sock opt: %s", strerror(errno));
 	if ( bind( listenfd, /*assigns a name to an unnamed socket*/
 		(struct sockaddr *) servAddr, sizeof(*servAddr)) < 0) {
 			perror("bind");
