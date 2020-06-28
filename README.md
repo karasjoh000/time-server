@@ -2,4 +2,6 @@
 ----------
 `src/daytime.c` client that requests for time   
 `src/dayserve.c` server that serves the time to all connections. 
+  
 
+  tested only on unix systems 
